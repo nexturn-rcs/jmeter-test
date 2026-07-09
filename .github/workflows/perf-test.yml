@@ -1,0 +1,109 @@
+name: Performance Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'Target URL (e.g. https://api.example.com)'
+        required: true
+        default: 'https://httpbin.org'
+      test_plan:
+        description: 'JMX test plan path (relative to repo root)'
+        required: true
+        default: 'tests/plans/sample-api-test.jmx'
+      users:
+        description: 'Virtual users'
+        required: true
+        default: '10'
+      ramp_up_seconds:
+        description: 'Ramp-up period (seconds)'
+        required: true
+        default: '30'
+      duration_seconds:
+        description: 'Test duration (seconds)'
+        required: true
+        default: '60'
+
+env:
+  JMETER_VERSION: 5.6.3
+
+jobs:
+  perf-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Install JMeter ${{ env.JMETER_VERSION }}
+        run: |
+          wget -q "https://downloads.apache.org/jmeter/binaries/apache-jmeter-${{ env.JMETER_VERSION }}.tgz"
+          tar -xzf "apache-jmeter-${{ env.JMETER_VERSION }}.tgz"
+          echo "$PWD/apache-jmeter-${{ env.JMETER_VERSION }}/bin" >> "$GITHUB_PATH"
+
+      - name: Parse target URL
+        id: url
+        run: |
+          TARGET="${{ inputs.target_url }}"
+          PROTOCOL=$(echo "$TARGET" | sed 's|://.*||')
+          HOSTPORT=$(echo "$TARGET" | sed 's|.*://||' | cut -d'/' -f1)
+          HOST=$(echo "$HOSTPORT" | cut -d':' -f1)
+          PORT=$(echo "$HOSTPORT" | grep -oP ':\K\d+' || true)
+          if [ -z "$PORT" ]; then
+            [ "$PROTOCOL" = "https" ] && PORT=443 || PORT=80
+          fi
+          echo "protocol=$PROTOCOL" >> "$GITHUB_OUTPUT"
+          echo "host=$HOST"         >> "$GITHUB_OUTPUT"
+          echo "port=$PORT"         >> "$GITHUB_OUTPUT"
+          echo "start=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Create output directories
+        run: mkdir -p results/html-report metrics-results
+
+      - name: Run JMeter
+        run: |
+          jmeter -n \
+            -t "${{ inputs.test_plan }}" \
+            -Jtarget_protocol="${{ steps.url.outputs.protocol }}" \
+            -Jtarget_host="${{ steps.url.outputs.host }}" \
+            -Jtarget_port="${{ steps.url.outputs.port }}" \
+            -Jusers="${{ inputs.users }}" \
+            -Jrampup="${{ inputs.ramp_up_seconds }}" \
+            -Jduration="${{ inputs.duration_seconds }}" \
+            -l results/results.jtl \
+            -e -o results/html-report
+
+      - name: Upload jmeter-results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jmeter-results
+          path: results/
+          retention-days: 30
+
+      - name: Collect infrastructure metrics
+        if: always()
+        env:
+          WINDOW_START: ${{ steps.url.outputs.start }}
+        run: |
+          chmod +x scripts/collect-metrics.sh
+          bash scripts/collect-metrics.sh \
+            --jtl results/results.jtl \
+            --start "$WINDOW_START" \
+            --end "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --output metrics-results/metrics-results.json
+        continue-on-error: true
+
+      - name: Upload metrics-results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metrics-results
+          path: metrics-results/
+          retention-days: 30

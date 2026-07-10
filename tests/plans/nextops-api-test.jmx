@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="NextOps API Performance Test">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <stringProp name="TestPlan.comments">Tests the NextOps platform API — works against localhost:8080 (self-hosted runner) or any deployed instance.</stringProp>
+    </TestPlan>
+    <hashTree>
+
+      <!-- ── User-defined variables ────────────────────────────────────────── -->
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Variables">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="protocol" elementType="Argument">
+            <stringProp name="Argument.name">protocol</stringProp>
+            <stringProp name="Argument.value">${__P(target_protocol,http)}</stringProp>
+          </elementProp>
+          <elementProp name="host" elementType="Argument">
+            <stringProp name="Argument.name">host</stringProp>
+            <stringProp name="Argument.value">${__P(target_host,localhost)}</stringProp>
+          </elementProp>
+          <elementProp name="port" elementType="Argument">
+            <stringProp name="Argument.name">port</stringProp>
+            <stringProp name="Argument.value">${__P(target_port,8080)}</stringProp>
+          </elementProp>
+          <elementProp name="users" elementType="Argument">
+            <stringProp name="Argument.name">users</stringProp>
+            <stringProp name="Argument.value">${__P(users,10)}</stringProp>
+          </elementProp>
+          <elementProp name="rampup" elementType="Argument">
+            <stringProp name="Argument.name">rampup</stringProp>
+            <stringProp name="Argument.value">${__P(rampup,30)}</stringProp>
+          </elementProp>
+          <elementProp name="duration" elementType="Argument">
+            <stringProp name="Argument.name">duration</stringProp>
+            <stringProp name="Argument.value">${__P(duration,60)}</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+
+      <!-- ── Thread Group ───────────────────────────────────────────────────── -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="NextOps API Users">
+        <intProp name="ThreadGroup.num_threads">${users}</intProp>
+        <intProp name="ThreadGroup.ramp_time">${rampup}</intProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${duration}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+
+        <!-- HTTP defaults -->
+        <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Defaults">
+          <stringProp name="HTTPSampler.protocol">${protocol}</stringProp>
+          <stringProp name="HTTPSampler.domain">${host}</stringProp>
+          <stringProp name="HTTPSampler.port">${port}</stringProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments"/>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        </ConfigTestElement>
+        <hashTree/>
+
+        <!-- Header manager -->
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Headers">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+
+        <!-- GET /health -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /health">
+          <stringProp name="HTTPSampler.path">/health</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Status 200">
+            <collectionProp name="Assertion.test_strings"><stringProp>200</stringProp></collectionProp>
+            <intProp name="Assertion.test_type">2</intProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+
+        <!-- GET /api/v1/clusters -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/v1/clusters">
+          <stringProp name="HTTPSampler.path">/api/v1/clusters</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Status 2xx">
+            <collectionProp name="Assertion.test_strings"><stringProp>2\d\d</stringProp></collectionProp>
+            <intProp name="Assertion.test_type">2</intProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+          </ResponseAssertion>
+          <hashTree/>
+        </hashTree>
+
+        <!-- GET /api/v1/dashboard -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/v1/dashboard">
+          <stringProp name="HTTPSampler.path">/api/v1/dashboard</stringProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+
+      </hashTree>
+
+      <!-- ── Summary Report listener (saved to file via -l flag) ───────────── -->
+      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp><name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time><latency>true</latency><timestamp>true</timestamp>
+            <success>true</success><label>true</label><code>true</code>
+            <message>true</message><threadName>true</threadName>
+            <dataType>true</dataType><encoding>false</encoding>
+            <assertions>true</assertions><subresults>true</subresults>
+            <responseData>false</responseData><samplerData>false</samplerData>
+            <xml>false</xml><fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders><requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes><sentBytes>true</sentBytes>
+            <url>true</url><threadCounts>true</threadCounts>
+            <idleTime>true</idleTime><connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename"/>
+      </ResultCollector>
+      <hashTree/>
+
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

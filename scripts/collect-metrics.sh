@@ -35,31 +35,31 @@ mkdir -p "$(dirname "$OUTPUT")"
 # Set PROMETHEUS_URL as a repository secret and uncomment this section.
 # Requires: curl, jq
 #
-# PROMETHEUS_URL="${PROMETHEUS_URL:-}"
-# if [[ -n "$PROMETHEUS_URL" ]]; then
-#   START_TS=$(date -d "$START" +%s 2>/dev/null || python3 -c "
-# from datetime import datetime
-# print(int(datetime.fromisoformat('$START'.replace('Z','+00:00')).timestamp()))")
-#   END_TS=$(date -d "$END" +%s 2>/dev/null || python3 -c "
-# from datetime import datetime
-# print(int(datetime.fromisoformat('$END'.replace('Z','+00:00')).timestamp()))")
-#
-#   cpu_data=$(curl -sf "${PROMETHEUS_URL}/api/v1/query_range" \
-#     --data-urlencode "query=100-(avg by()(irate(node_cpu_seconds_total{mode='idle'}[1m]))*100)" \
-#     --data-urlencode "start=${START_TS}" \
-#     --data-urlencode "end=${END_TS}" \
-#     --data-urlencode "step=30")
-#
-#   mem_data=$(curl -sf "${PROMETHEUS_URL}/api/v1/query_range" \
-#     --data-urlencode "query=(1-node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100" \
-#     --data-urlencode "start=${START_TS}" \
-#     --data-urlencode "end=${END_TS}" \
-#     --data-urlencode "step=30")
-#
-#   # Transform Prometheus range-query results into nextops-metrics/v1 points
-#   # using jq and write directly to $OUTPUT, then exit 0.
-#   # jq '.data.result[0].values[] | {t: (.[0]|todate), v: (.[1]|tonumber)}' <<< "$cpu_data"
-# fi
+PROMETHEUS_URL="${PROMETHEUS_URL:-https://test.prometheus.apartstay.nexturn.cloud}"
+if [[ -n "$PROMETHEUS_URL" ]]; then
+  START_TS=$(date -d "$START" +%s 2>/dev/null || python3 -c "
+from datetime import datetime
+print(int(datetime.fromisoformat('$START'.replace('Z','+00:00')).timestamp()))")
+  END_TS=$(date -d "$END" +%s 2>/dev/null || python3 -c "
+from datetime import datetime
+print(int(datetime.fromisoformat('$END'.replace('Z','+00:00')).timestamp()))")
+
+  cpu_data=$(curl -sf "${PROMETHEUS_URL}/api/v1/query_range" \
+    --data-urlencode "query=100-(avg by()(irate(node_cpu_seconds_total{mode='idle'}[1m]))*100)" \
+    --data-urlencode "start=${START_TS}" \
+    --data-urlencode "end=${END_TS}" \
+    --data-urlencode "step=30")
+
+  mem_data=$(curl -sf "${PROMETHEUS_URL}/api/v1/query_range" \
+    --data-urlencode "query=(1-node_memory_MemAvailable_bytes/node_memory_MemTotal_bytes)*100" \
+    --data-urlencode "start=${START_TS}" \
+    --data-urlencode "end=${END_TS}" \
+    --data-urlencode "step=30")
+
+  # Transform Prometheus range-query results into nextops-metrics/v1 points
+  # using jq and write directly to $OUTPUT, then exit 0.
+  # jq '.data.result[0].values[] | {t: (.[0]|todate), v: (.[1]|tonumber)}' <<< "$cpu_data"
+fi
 
 # ── Fallback: synthetic metrics derived from JTL ─────────────────────────────
 # Generates representative CPU/memory/error-rate/latency series.

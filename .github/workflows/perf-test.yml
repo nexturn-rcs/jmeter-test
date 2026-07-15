@@ -27,6 +27,14 @@ on:
         description: 'Runner label — use "ubuntu-latest" for GitHub-hosted or "self-hosted" to reach localhost'
         required: false
         default: 'ubuntu-latest'
+      service_namespace:
+        description: 'Kubernetes namespace of the service under test (used for targeted Prometheus queries)'
+        required: false
+        default: ''
+      service_name:
+        description: 'Container / deployment name of the service under test'
+        required: false
+        default: ''
 
 env:
   JMETER_VERSION: 5.6.3
@@ -92,6 +100,7 @@ jobs:
         run: mkdir -p results/html-report metrics-results
 
       - name: Run JMeter
+        id: jmeter
         run: |
           jmeter -n \
             -t "${{ inputs.test_plan }}" \
@@ -103,6 +112,7 @@ jobs:
             -Jduration="${{ inputs.duration_seconds }}" \
             -l results/results.jtl \
             -e -o results/html-report
+          echo "end=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Upload jmeter-results
         uses: actions/upload-artifact@v4
@@ -112,17 +122,29 @@ jobs:
           path: results/
           retention-days: 30
 
+      - name: Wait for Prometheus scrape
+        if: env.PROMETHEUS_URL != ''
+        env:
+          PROMETHEUS_URL: ${{ secrets.PROMETHEUS_URL }}
+        run: |
+          echo "Waiting 3 minutes for Prometheus to scrape post-test metrics..."
+          sleep 180
+
       - name: Collect infrastructure metrics
         if: always()
         env:
-          WINDOW_START: ${{ steps.url.outputs.start }}
+          WINDOW_START:      ${{ steps.url.outputs.start }}
+          WINDOW_END:        ${{ steps.jmeter.outputs.end }}
+          PROMETHEUS_URL:    ${{ secrets.PROMETHEUS_URL }}
+          SERVICE_NAMESPACE: ${{ inputs.service_namespace }}
+          SERVICE_NAME:      ${{ inputs.service_name }}
         run: |
           chmod +x scripts/collect-metrics.sh
           bash scripts/collect-metrics.sh \
-            --jtl results/results.jtl \
-            --start "$WINDOW_START" \
-            --end "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --output metrics-results/metrics-results.json
+            --jtl     results/results.jtl \
+            --start   "$WINDOW_START" \
+            --end     "${WINDOW_END:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" \
+            --output  metrics-results/metrics-results.json
         continue-on-error: true
 
       - name: Upload metrics-results

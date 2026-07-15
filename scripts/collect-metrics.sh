@@ -62,10 +62,16 @@ except Exception:
     end_dt   = datetime.now(timezone.utc)
     start_dt = end_dt - timedelta(minutes=5)
 
-start_ts = int(start_dt.timestamp())
-end_ts   = int(end_dt.timestamp())
-duration_s = max(end_ts - start_ts, 60)
+PROM_BUFFER_S = 30  # expand query window ±30s to catch scrapes at boundary
+
+# JMeter window (for labels / duration calculation)
+duration_s = max(int(end_dt.timestamp()) - int(start_dt.timestamp()), 60)
 step = max(15, duration_s // 60)  # ~60 data points, min 15s resolution
+
+# Prometheus query window: slightly wider than the JMeter run so scrapes
+# that fired just before or after the test boundaries are included
+start_ts = int(start_dt.timestamp()) - PROM_BUFFER_S
+end_ts   = int(end_dt.timestamp())   + PROM_BUFFER_S
 
 # ── Parse JTL CSV ─────────────────────────────────────────────────────────────
 
